@@ -1,5 +1,7 @@
+import { API_KEY, BASE_URL } from '@env'
+import axios from 'axios'
 import { StatusBar } from 'expo-status-bar'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   Image,
   SafeAreaView,
@@ -9,17 +11,56 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { MagnifyingGlassIcon } from 'react-native-heroicons/outline'
+import {
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
+  SunIcon,
+} from 'react-native-heroicons/outline'
 import { CalendarDaysIcon, MapPinIcon } from 'react-native-heroicons/solid'
 import { twMerge } from 'tailwind-merge'
 
+import { ForecastDTO, Location } from '@/dto/forecast-dto'
+
+export type ParamsProps = {
+  name: string
+  days?: number
+}
+
 export function Home() {
   const [toggle, setToggle] = useState(false)
-  const [locations, setLocations] = useState([1, 2, 3])
+  const [locations, setLocations] = useState<Location[]>([] as Location[])
+  const [weather, setWeather] = useState({} as ForecastDTO)
 
-  function handleLocation(loc: number) {
-    console.log(loc)
+  async function fetchLocation(city: string) {
+    if (city.length > 2) {
+      try {
+        const response = await axios.get(
+          `${BASE_URL}/search.json?key=${API_KEY}&q=${city}`,
+        )
+        setLocations(response.data)
+      } catch (error) {
+        console.log(error)
+      }
+    }
   }
+
+  async function fetchForecast({ name, days = 7 }: ParamsProps) {
+    try {
+      const response = await axios.get(
+        `${BASE_URL}/forecast.json?key=${API_KEY}&q=${name}&days=${days}&aqi=no&alerts=no`,
+      )
+      setLocations([])
+      setToggle(false)
+      setWeather(response.data)
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const handleTextBounce = useCallback(fetchLocation, [])
+
+  const { current, location } = weather
 
   return (
     <View className="relative flex-1 bg-black">
@@ -39,6 +80,7 @@ export function Home() {
           >
             {toggle && (
               <TextInput
+                onChangeText={handleTextBounce}
                 placeholder="Search city"
                 placeholderTextColor={'lightgray'}
                 className="ml-4 h-10 flex-1 pb-1 text-base text-white"
@@ -54,11 +96,11 @@ export function Home() {
           </View>
           {locations.length > 0 && toggle ? (
             <View className="gray-300 absolute top-16 w-full rounded-3xl bg-gray-300">
-              {locations.map((loc, index) => {
+              {locations.map(({ country, name }, index) => {
                 return (
                   <TouchableOpacity
                     key={index}
-                    onPress={() => handleLocation(loc)}
+                    onPress={() => fetchForecast({ name })}
                     className={twMerge(
                       ' mb-1 flex-row items-center border-0  p-3 px-4',
                       index + 1 !== locations.length
@@ -67,7 +109,9 @@ export function Home() {
                     )}
                   >
                     <MapPinIcon size="20" color="gray" />
-                    <Text className="ml-2 text-base">São Paulo, Brasil</Text>
+                    <Text className="ml-2 text-base">
+                      {name}, {country}
+                    </Text>
                   </TouchableOpacity>
                 )
               })}
@@ -76,29 +120,49 @@ export function Home() {
         </View>
         <View className="mx-4 mb-2 flex flex-1 justify-around">
           <Text className="text-center text-2xl font-bold text-white">
-            São Paulo,
-            <Text className="text-lg font-semibold text-gray-300">Brasil</Text>
+            {location?.name},{' '}
+            <Text className="text-lg font-semibold text-gray-300">
+              {location?.country}
+            </Text>
           </Text>
           <View className="flex-row justify-center">
-            <Text className="h-52 w-52 text-white">Image</Text>
+            <Image
+              source={{ uri: 'https:' + current?.condition?.icon }}
+              alt="icon temperature"
+              className="h-52 w-52"
+            />
           </View>
           <View className="space-y-2">
             <Text className="ml-5 text-center text-6xl font-bold text-white">
-              22&#176;
+              {current?.temp_c}&#176;
             </Text>
             <Text className="text-center text-xl tracking-widest text-white">
-              Partly cloudy
+              {current?.condition?.text}
             </Text>
           </View>
           <View className="mx-4 flex-row justify-between">
             <View className="flex-row items-center space-x-2">
-              <Text className="h-6 w-6 text-white">Image</Text>
-              <Text className="text-base font-semibold text-white">22km</Text>
+              <ExclamationTriangleIcon size="25" color="white" />
+              <Text className="text-base font-semibold text-white">
+                {current?.wind_kph} km
+              </Text>
+            </View>
+            <View className="flex-row items-center space-x-2">
+              <ExclamationCircleIcon size="25" color="white" />
+              <Text className="text-base font-semibold text-white">
+                {current?.humidity} %
+              </Text>
+            </View>
+            <View className="flex-row items-center space-x-2">
+              <SunIcon size="25" color="white" />
+              <Text className="text-base font-semibold text-white">
+                6:05 AM
+              </Text>
             </View>
           </View>
         </View>
 
-        <View className="mb-2 space-y-3">
+        <View className=" mb-2 space-y-3">
           <View className="mx-5 flex-row items-center space-x-2">
             <CalendarDaysIcon size="22" color="white" />
             <Text className="text-base text-white">Daily forecast</Text>
@@ -108,11 +172,29 @@ export function Home() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 15 }}
           >
-            <View className="flex w-24 items-center justify-center space-y-3 rounded-3xl py-3">
-              <Text className="h-6 w-6 text-white">Image</Text>
-              <Text className=" text-white">Monday</Text>
-              <Text className="text-xl font-semibold text-white">12&#176;</Text>
-            </View>
+            {weather?.forecast?.forecastday?.map((item, index) => {
+              const date = new Date(item.date)
+              let dayName = date.toLocaleDateString('en-US', {
+                weekday: 'long',
+              })
+              dayName = dayName.split(',')[0]
+              return (
+                <View
+                  key={index}
+                  className=" mr-4 flex w-24 items-center justify-center space-y-1 rounded-3xl bg-slate-400 bg-opacity-95 py-3"
+                >
+                  <Image
+                    source={{ uri: 'https:' + item?.day?.condition?.icon }}
+                    alt="icon temperature"
+                    className="h-11 w-11"
+                  />
+                  <Text className=" text-white">{dayName}</Text>
+                  <Text className="text-xl font-semibold text-white">
+                    {item?.day?.avgtemp_c}&#176;
+                  </Text>
+                </View>
+              )
+            })}
           </ScrollView>
         </View>
       </SafeAreaView>
