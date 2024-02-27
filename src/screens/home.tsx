@@ -22,7 +22,6 @@ import { CalendarDaysIcon, MapPinIcon } from 'react-native-heroicons/solid'
 import { twMerge } from 'tailwind-merge'
 
 import { ForecastDTO, Location } from '@/dto/forecast-dto'
-import { storageDataSave } from '@/storage/weather-storage'
 
 export type ParamsProps = {
   name: string
@@ -61,7 +60,6 @@ export function Home() {
       setIsLoading(true)
       setWeather(response.data)
       setIsLoading(false)
-      storageDataSave({ name })
     } catch (error) {
       console.log(error)
     }
@@ -80,7 +78,7 @@ export function Home() {
 
   useEffect(() => {
     fetchWeatherData()
-  })
+  }, [])
 
   return (
     <View className="relative flex-1 bg-black">
